@@ -1,15 +1,11 @@
 # Databricks notebook source
-# MAGIC %run ./config
+# MAGIC %run ../conf/config-init
 
 # COMMAND ----------
 
-class HistoryLoader():
+class HistoryLoader(ConfigInitializer):
     def __init__(self, env):
-        Conf = Config()
-        self.landing_zone = Conf.base_dir_data + "/raw"
-        self.test_data_dir = Conf.base_dir_data + "/test_data"
-        self.catalog = env
-        self.db_name = Conf.db_name
+        super().__init__(env)
 
     def load_date_lookup(self):
         print(f"Loading date_lookup table...", end='')
