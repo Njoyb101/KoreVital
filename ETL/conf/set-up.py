@@ -11,16 +11,19 @@
         self.catalog = env
         self.db_name = Conf.db_name
         self.initialized = False
+        self.tables_created = []
 
     def create_db(self):
         spark.catalog.clearCache()
-        print(
-            f"Creating the database {self.catalog}.{self.db_name}...", end='')
-        spark.sql(
-            f"CREATE DATABASE IF NOT EXISTS {self.catalog}.{self.db_name}")
+        print(f"Creating the database {self.catalog}.{self.db_name}...", end='')
+        spark.sql(f"CREATE DATABASE IF NOT EXISTS {self.catalog}.{self.db_name}")
         spark.sql(f"USE {self.catalog}.{self.db_name}")
         self.initialized = True
         print("Done")
+
+    def update_table_list(self, table_name): 
+        """Update the internal list of created tables.""" 
+        self.tables_created.append(table_name)
 
     def create_registered_users_bz(self):
         if (self.initialized):
@@ -34,10 +37,11 @@
                     source_file string                    
                     )
                   """)
+            self.update_table_list("registered_users_bz")
             print("Done")
+            
         else:
-            raise ReferenceError(
-                "Application database is not defined. Cannot create table in default database.")
+            raise ReferenceError("Application database is not defined. Cannot create table in default database.")
 
     def create_gym_logins_bz(self):
         if (self.initialized):
@@ -51,6 +55,7 @@
                     source_file string
                     )
                   """)
+            self.update_table_list("gym_logins_bz")
             print("Done")
         else:
             raise ReferenceError(
@@ -72,6 +77,7 @@
                   source_file string)
                   PARTITIONED BY (topic, week_part)
                   """)
+            self.update_table_list("kafka_multiplex_bz")
             print("Done")
         else:
             raise ReferenceError(
@@ -87,6 +93,7 @@
                     registration_timestamp timestamp
                     )
                   """)
+            self.update_table_list("users")
             print("Done")
         else:
             raise ReferenceError(
@@ -102,6 +109,7 @@
                     logout timestamp
                     )
                   """)
+            self.update_table_list("gym_logs")
             print("Done")
         else:
             raise ReferenceError(
@@ -123,6 +131,7 @@
                     zip INT, 
                     updated TIMESTAMP)
                   """)
+            self.update_table_list("user_profile")
             print("Done")
         else:
             raise ReferenceError(
@@ -137,6 +146,7 @@
                     heartrate DOUBLE, 
                     valid BOOLEAN)
                   """)
+            self.update_table_list("heart_rate")
             print("Done")
         else:
             raise ReferenceError(
@@ -152,6 +162,7 @@
                     city STRING, 
                     state STRING)
                   """)
+            self.update_table_list("user_bins")
             print("Done")
         else:
             raise ReferenceError(
@@ -167,6 +178,7 @@
                     action STRING, 
                     session_id INT)
                   """)
+            self.update_table_list("workouts")
             print("Done")
         else:
             raise ReferenceError(
@@ -182,6 +194,7 @@
                     start_time TIMESTAMP, 
                     end_time TIMESTAMP)
                   """)
+            self.update_table_list("completed_workouts")
             print("Done")
         else:
             raise ReferenceError(
@@ -199,6 +212,7 @@
                     time TIMESTAMP, 
                     heartrate DOUBLE)
                   """)
+            self.update_table_list("workout_bpm")
             print("Done")
         else:
             raise ReferenceError(
@@ -217,6 +231,7 @@
                     dayofyear int, 
                     week_part string)
                   """)
+            self.update_table_list("date_lookup")
             print("Done")
         else:
             raise ReferenceError(
@@ -238,6 +253,7 @@
                     max_bpm DOUBLE, 
                     num_recordings BIGINT)
                   """)
+            self.update_table_list("workout_bpm_summary")
             print("Done")
         else:
             raise ReferenceError(
@@ -259,6 +275,7 @@
                             AND w. start_time BETWEEN l.login AND l.logout
                             order by date, gym, l.mac_address, session_id
                         """)
+            self.update_table_list("gym_summary")
             print("Done")
         else:
             raise ReferenceError(
@@ -296,31 +313,20 @@
         import time
         start = int(time.time())
         print(f"\nStarting setup validation ...")
+        # Database Validation
         assert spark.sql(f"SHOW DATABASES IN {self.catalog}") \
                     .filter(f"databaseName == '{self.db_name}'") \
                     .count() == 1, f"The database '{self.catalog}.{self.db_name}' is missing"
         print(f"Found database {self.catalog}.{self.db_name}: Success")
-        self.assert_table("registered_users_bz")
-        self.assert_table("gym_logins_bz")
-        self.assert_table("kafka_multiplex_bz")
-        self.assert_table("users")
-        self.assert_table("gym_logs")
-        self.assert_table("user_profile")
-        self.assert_table("heart_rate")
-        self.assert_table("workouts")
-        self.assert_table("completed_workouts")
-        self.assert_table("workout_bpm")
-        self.assert_table("user_bins")
-        self.assert_table("date_lookup")
-        self.assert_table("workout_bpm_summary")
-        self.assert_table("gym_summary")
-        print(
-            f"Setup validation completed in {int(time.time()) - start} seconds")
+        # Tables validation
+        for table in  self.tables_created :
+            self.assert_table(table)
+        print(f"Setup validation completed in {int(time.time()) - start} seconds")
 
     def cleanup(self):
+        """Drops Landing Zone, Checkpoint zone  & Catalog Database"""
         if spark.sql(f"SHOW DATABASES IN {self.catalog}").filter(f"databaseName == '{self.db_name}'").count() == 1:
-            print(
-                f"Dropping the database {self.catalog}.{self.db_name}...", end='')
+            print(f"Dropping the database {self.catalog}.{self.db_name}...", end='')
             spark.sql(f"DROP DATABASE {self.catalog}.{self.db_name} CASCADE")
             print("Done")
         print(f"Deleting {self.landing_zone}...", end='')
